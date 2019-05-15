@@ -23,17 +23,18 @@ class Browser:
         
         if run_locally:
             print "RUN LOCALLY"
-            driver_path = '%s/bin/chromedriver' % dir_path
+            driver_path = '%s/bin/chromedriver_mac' % dir_path
             chrome_options.add_argument("--headless")
             chrome_options.add_argument('--no-sandbox')
         else:
             print "RUN LAMBDA"
-            driver_path = drvr_path or '%s/bin/chromedriver-linux' % dir_path
+            driver_path = '%s/bin/chromedriver-linux' % dir_path
             chrome_options.binary_location = '%s/bin/headless-chromium-linux' % dir_path
             chrome_options.add_argument("--headless")
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--single-process')
             chrome_options.add_argument('--disable-dev-shm-usage')
+
         self.driver = webdriver.Chrome(driver_path, chrome_options=chrome_options)
         self.driver.implicitly_wait(5)
 

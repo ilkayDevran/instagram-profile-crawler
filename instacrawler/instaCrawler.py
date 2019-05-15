@@ -37,6 +37,8 @@ class Post:
         self.viewCount = None
         self.mentions = []
         self.captionByUser = ''
+        self.postType = ''
+        self.facebookCaption = ''
 
     def set_attributes(self, postDate, likeCount, captionInPostPage, tags, viewCount, captionByUser, mentions):
         self.postDate = postDate
@@ -50,36 +52,33 @@ class Post:
 
     @property
     def meta_data(self):
-        return {    
+        captionInProfilePage = self.captionInProfilePage.encode('utf-8')
+        captionInPostPage = self.captionInPostPage.encode('utf-8')
+        captionByUser = self.captionByUser.encode('utf-8') 
+        
+        if 'Image may contain:' in captionInProfilePage and captionInProfilePage != captionByUser:
+            self.facebookCaption =  captionInProfilePage 
+        elif 'Image may contain:' in captionInPostPage and captionInPostPage != captionByUser:
+            self.facebookCaption = captionInPostPage 
+        
+        data = {    
                     "Key": self.key,
                     "ImageUrl": self.imageUrl,
-                    "CaptionInProfilePage": self.captionInProfilePage.encode('utf-8'),
                     "PostDate": self.postDate,
                     "LikeCount": self.likeCount,
-                    "CaptionInPostPage": self.captionInPostPage.encode('utf-8'),
                     "Tags": self.tags,
                     "CrawledTime": self.crawledTime,
                     "ViewCount": self.viewCount,
                     "Mentions": self.mentions,
-                    "CaptionByUser": self.captionByUser.encode('utf-8')
+                    "CaptionByUser": self.captionByUser.encode('utf-8'),
+                    "PostType": self.postType,
+                    "FacebookCaption": self.facebookCaption
                 }
 
+
+        return data
+
     def __str__(self):
-        """print (
-            "\nDate: " + self.postDate + "\n" +
-            "CaptionInProfilePage: " + self.captionInProfilePage + "\n" +
-            "CaptionInPostPage: " + self.captionInPostPage + "\n" +
-            "Like: " + str(self.likeCount) + "\n" +
-            "Key: " + self.key + "\n" +
-            "ImageUrl: " + self.imageUrl + "\nTags: " +
-            "CrawlTime: " + self.crawledTime)
-        
-        if len(self.tags) == 0:
-            print("[]")
-        else:    
-            for t in self.tags:
-                print(t,)
-        print("\n")"""
         print (
             "\nDate: " + self.postDate + "\n" +
             "CaptionInProfilePage: " + self.captionInProfilePage.encode('utf-8') + "\n" +
@@ -88,7 +87,9 @@ class Post:
             "ViewCount: " + str(self.viewCount) + "\n" +
             "CaptionByUser: " + self.captionByUser.encode('utf-8') + "\n" +
             "Key: " + self.key + "\n" +
-            "ImageUrl: " + self.imageUrl + "\nTags: ") 
+            "ImageUrl: " + self.imageUrl + 
+            "PostType:" + self.postType + 
+            "FacebookCaption" + self.facebookCaption + "\nTags: ") 
         
         if len(self.tags) == 0:
             print("[]")
@@ -146,6 +147,7 @@ class Profile:
         self.postCount = int( metaInfo[0].text.replace(',','').replace('.','') )
         self.followersCount = int( metaInfo[1].get_attribute('title').replace(',','').replace('.','') )
         self.followingCount = int( metaInfo[2].text.replace(',','').replace('.','') )
+        self.profileCrawledTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     def addPost(self, p):
         self.postsList.append(p)
@@ -165,6 +167,7 @@ class Profile:
         jsn['Profile']['Followers'] = self.followersCount
         jsn['Profile']['Following'] = self.followingCount
         jsn['Profile']['PostCount'] = self.postCount
+        jsn['Profile']['CrawledDate'] = self.profileCrawledTime
         jsn['Posts'] = [p.meta_data for p in self.postsList]
         
         return jsn
@@ -197,16 +200,16 @@ class InstaCrawler:
     # Private Functions
     def __get_posts_from_profile(self, profile, try_limit):
         browser = self.browser
-        
+        rng = self.total_post_count
         if self.total_post_count == 0:
-            self.total_post_count = profile.postCount
+            rng = profile.postCount
 
-        print "To be processed post count: " + str(self.total_post_count)
+        print("To be processed post count: " + str(rng))
         with Spinner(profile.userName + "'s profile is crawling ") as spinner:
             posts = []
             key_set = set()
             post_counter = 0
-            while post_counter < self.total_post_count:
+            while post_counter < rng:
                 if try_limit == 0:
                     break
                 try:
@@ -254,6 +257,7 @@ class InstaCrawler:
                     try:
                         likeCount = int(browser.find_one('.zV_Nj').text.split()[0].replace(",","").replace(".",""))
                         captionInPostPage = browser.find_one('.KL4Bh img').get_attribute('alt')
+                        p.postType = 'photo'
                     except:
                         # Actually it is viewCount if the post is a video content
                         try:
@@ -262,19 +266,20 @@ class InstaCrawler:
                             likeCount = int(browser.find_one('.zV_Nj').text.split()[0].replace(",","").replace(".",""))
                         captionInPostPage = '*-Video Content-*'
                         p.captionInProfilePage = '*-Video Content-*'
+                        p.postType = 'video'
                     # Extract Tags and Mentions from post caption
                     tags=set()
                     mentions=set()
                     firstCaptionForPost = browser.find_one('.C4VMK')
                     # Check if first caption for the post is really belongs to the profile User to extract tags
                     if str(browser.find_one('._6lAjh a', firstCaptionForPost).get_attribute('href')) == str(browser.find_one('.BrX75 a').get_attribute('href')):
-                        captionByUser = re.sub(r'#.*?(\s+|$)', '', re.sub(r'@.*?(\s+|$)', '', firstCaptionForPost.text)).replace(profile.userName, '') # username in caption issue....
+                        captionByUser = re.sub(r'#.*?(\s+|$)', '', re.sub(r'@.*?(\s+|$)', '', firstCaptionForPost.text)).replace(profile.userName, '').replace('\n', ' ') # username in caption issue....
                         tmp = browser.find(firstCaptionForPost, x_path='//a')
                         for a in tmp:
                             if '#' in a.text:
                                 tags.add(str(a.get_attribute('href')).replace('https://www.instagram.com/explore/tags/','').replace('/',''))
                             elif '@' in a.text:
-                                mentions.add(str(a.get_attribute('href')).replace('/',''))
+                                mentions.add(str(a.get_attribute('href')).replace('https://www.instagram.com/','').replace('/',''))
                     tags = list(tags)
                     mentions = list(mentions)
                     p.set_attributes(postDate, likeCount, captionInPostPage, tags, viewCount, captionByUser, mentions)
@@ -287,16 +292,12 @@ class InstaCrawler:
 
     # Public Functions
     def get_profile_details(self, profile):
+        browser = self.browser
         try_limit = self.retry_limit
-        self.browser.go(profile.url) # Go to user profile on browser
+        browser.go(profile.url) # Go to user profile on browser
         
-        meta_profile_info = self.browser.find('.g47SY', waittime=4)
+        meta_profile_info = browser.find('.g47SY', waittime=4)
         profile.set_meta_info(meta_profile_info)
         self.__get_posts_from_profile(profile, try_limit)
         self.__get_details_of_posts(profile)
-    
-    # Test functions
-    def test_post(self,profile):
-        self.__get_details_of_posts(profile)
-
     
