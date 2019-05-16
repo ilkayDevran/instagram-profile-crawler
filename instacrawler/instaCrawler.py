@@ -215,7 +215,7 @@ class InstaCrawler:
                 try:
                     dozen_posts = browser.find('.v1Nh3 a', waittime=1)
                     for p in (dozen_posts):
-                        if post_counter >= self.total_post_count:
+                        if post_counter >= rng:
                             break
                         key = p.get_attribute('href')
                         if key not in key_set:
